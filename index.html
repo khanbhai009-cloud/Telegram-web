@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Telegram Mini App</title>
+    
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-color: #3b82f6;
+            --accent-hover: #2563eb;
+            --success-color: #22c55e;
+            --danger-color: #ef4444;
+            --bottom-nav-height: 70px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            padding-bottom: calc(var(--bottom-nav-height) + 20px);
+            overflow-x: hidden;
+        }
+
+        /* --- Layout --- */
+        .container { padding: 16px; max-width: 600px; margin: 0 auto; }
+        .hidden { display: none !important; }
+        
+        /* --- Components --- */
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-outline { background: transparent; border: 1px solid var(--accent-color); color: var(--accent-color); }
+        .btn-sm { padding: 6px 12px; font-size: 0.85rem; width: auto; }
+
+        /* --- Header --- */
+        .header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+        .user-avatar { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; background: #334155; }
+        .user-info h2 { font-size: 1.1rem; }
+        .user-info p { font-size: 0.85rem; color: var(--text-secondary); }
+
+        /* --- Stats Grid --- */
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .stat-card { background: #334155; padding: 12px; border-radius: 10px; text-align: center; }
+        .stat-val { font-size: 1.2rem; font-weight: bold; color: var(--accent-color); }
+        .stat-label { font-size: 0.75rem; color: var(--text-secondary); }
+
+        /* --- Announcement --- */
+        .announcement {
+            background: linear-gradient(45deg, #f59e0b, #d97706);
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+        }
+
+        /* --- Lists (Tasks/Withdrawals) --- */
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            border: 1px solid #334155;
+        }
+        .item-left { display: flex; flex-direction: column; gap: 4px; }
+        .item-title { font-weight: 600; font-size: 0.95rem; }
+        .item-sub { font-size: 0.8rem; color: var(--text-secondary); }
+        .tag { background: #334155; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; }
+
+        /* --- Form --- */
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 6px; color: var(--text-secondary); font-size: 0.9rem; }
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: white;
+            font-size: 1rem;
+        }
+        .input-field:focus { outline: none; border-color: var(--accent-color); }
+
+        /* --- Bottom Nav --- */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: var(--bottom-nav-height);
+            background: var(--card-bg);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            border-top: 1px solid #334155;
+            z-index: 100;
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            cursor: pointer;
+            width: 25%;
+        }
+        .nav-item i { font-size: 1.2rem; margin-bottom: 4px; }
+        .nav-item.active { color: var(--accent-color); }
+
+        /* --- Toast Notification --- */
+        #toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1000;
+            left: 50%;
+            bottom: 90px;
+            transform: translateX(-50%);
+            font-size: 14px;
+        }
+        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 90px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 90px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+        
+        /* Spinner */
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid var(--accent-color); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: none; margin: 0 auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    </style>
+</head>
+<body>
+
+    <div id="app-loader" style="position:fixed; top:0; left:0; width:100%; height:100vh; background:var(--bg-color); z-index:9999; display:flex; justify-content:center; align-items:center;">
+        <div class="loader" style="display:block; width: 40px; height: 40px;"></div>
+    </div>
+
+    <div class="container">
+        
+        <div id="tab-dashboard" class="tab-content">
+            <div class="header">
+                <img src="" id="dash-photo" class="user-avatar" alt="User">
+                <div class="user-info">
+                    <h2 id="dash-name">Loading...</h2>
+                    <p>ID: <span id="dash-id">---</span></p>
+                </div>
+            </div>
+
+            <div id="announcement-banner" class="announcement hidden">
+                <i class="fas fa-bell"></i>
+                <span id="announcement-text">Loading updates...</span>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-val" id="stat-coins">0</div>
+                    <div class="stat-label">Coins (₹)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-val" id="stat-referrals">0</div>
+                    <div class="stat-label">Referrals</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-val" id="stat-withdrawals">0</div>
+                    <div class="stat-label">Withdrawn</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-val" id="stat-tasks">0</div>
+                    <div class="stat-label">Tasks Done</div>
+                </div>
+            </div>
+
+            <h3 style="margin-bottom: 10px;">🚀 Quick Tasks</h3>
+            <div id="quick-tasks-list">
+                <div class="loader" style="display:block"></div>
+            </div>
+
+            <div class="card" style="margin-top: 20px;">
+                <h3 style="margin-bottom: 10px;">Invite Friends</h3>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px;">Share your link and earn rewards!</p>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="ref-link-input" class="input-field" readonly style="font-size: 0.8rem; padding: 8px;">
+                    <button onclick="copyRefLink()" class="btn btn-sm"><i class="fas fa-copy"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-tasks" class="tab-content hidden">
+            <h2 style="margin-bottom: 15px;">Earn Coins</h2>
+            
+            <div class="form-group">
+                <input type="text" id="task-search" placeholder="Search tasks..." class="input-field" onkeyup="filterTasks()">
+            </div>
+
+            <div class="card" style="border: 1px solid #f59e0b;">
+                <div class="list-item" style="background:transparent; border:none; padding:0; margin:0;">
+                    <div class="item-left">
+                        <span class="item-title">📺 Watch Advertisement</span>
+                        <span class="item-sub">Watch a short ad to support us</span>
+                        <span class="tag" style="width: fit-content; margin-top:4px; background:#f59e0b; color:black;">+50 Coins</span>
+                    </div>
+                </div>
+                <button onclick="watchAdTask()" class="btn" style="margin-top: 10px; background: #f59e0b;">
+                    <i class="fas fa-play"></i> Watch & Earn
+                </button>
+            </div>
+
+            <div id="all-tasks-list">
+                </div>
+        </div>
+
+        <div id="tab-withdraw" class="tab-content hidden">
+            <h2 style="margin-bottom: 15px;">Withdraw Funds</h2>
+            
+            <div class="card">
+                <div class="form-group">
+                    <label>UPI ID</label>
+                    <input type="text" id="withdraw-upi" placeholder="e.g., user@okhdfc" class="input-field">
+                </div>
+                <div class="form-group">
+                    <label>Amount (₹)</label>
+                    <input type="number" id="withdraw-amount" placeholder="Min: 50" class="input-field">
+                </div>
+                <div style="text-align: right; margin-bottom: 10px; font-size: 0.85rem; color: var(--text-secondary);">
+                    Balance: <span id="wallet-balance">0</span>
+                </div>
+                <button onclick="submitWithdrawal()" id="btn-withdraw" class="btn">Request Withdrawal</button>
+            </div>
+
+            <h3 style="margin: 20px 0 10px;">Recent History</h3>
+            <div id="withdrawal-history">
+                <p style="text-align:center; color: var(--text-secondary);">No history yet</p>
+            </div>
+        </div>
+
+        <div id="tab-profile" class="tab-content hidden">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <img src="" id="profile-photo" class="user-avatar" style="width: 80px; height: 80px; margin-bottom: 10px;" alt="Profile">
+                <h2 id="profile-name">User Name</h2>
+                <p style="color: var(--text-secondary);">ID: <span id="profile-id">---</span></p>
+                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 5px;">Referred By: <span id="profile-ref-by">None</span></p>
+            </div>
+
+            <div class="card">
+                <div class="list-item" style="background: transparent; border: none; border-bottom: 1px solid #334155; padding: 10px 0;">
+                    <span>💰 Total Balance</span>
+                    <span id="profile-coins" style="font-weight: bold; color: var(--success-color);">0</span>
+                </div>
+                <div class="list-item" style="background: transparent; border: none; border-bottom: 1px solid #334155; padding: 10px 0;">
+                    <span>👥 Total Referrals</span>
+                    <span id="profile-referrals" style="font-weight: bold;">0</span>
+                </div>
+                <div class="list-item" style="background: transparent; border: none; padding: 10px 0;">
+                    <span>🏦 Total Withdrawn</span>
+                    <span id="profile-withdrawn" style="font-weight: bold;">0</span>
+                </div>
+            </div>
+
+            <button onclick="location.reload()" class="btn btn-outline" style="margin-top: 10px;">
+                <i class="fas fa-sync"></i> Refresh Profile
+            </button>
+             <button onclick="copyRefLink()" class="btn" style="margin-top: 10px;">
+                <i class="fas fa-link"></i> Copy Referral Link
+            </button>
+        </div>
+
+    </div>
+
+    <div class="bottom-nav">
+        <div class="nav-item active" onclick="switchTabs('dashboard', this)">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
+        </div>
+        <div class="nav-item" onclick="switchTabs('tasks', this)">
+            <i class="fas fa-tasks"></i>
+            <span>Tasks</span>
+        </div>
+        <div class="nav-item" onclick="switchTabs('withdraw', this)">
+            <i class="fas fa-wallet"></i>
+            <span>Wallet</span>
+        </div>
+        <div class="nav-item" onclick="switchTabs('profile', this)">
+            <i class="fas fa-user"></i>
+            <span>Profile</span>
+        </div>
+    </div>
+
+    <div id="toast">Message</div>
+
+    <script>
+        // ==========================================
+        // 1. CONFIGURATION
+        // ==========================================
+        
+        // 🔥 REPLACE WITH YOUR FIREBASE CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyD-YOUR-API-KEY-HERE",
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef"
+        };
+
+        // 🔥 REPLACE WITH YOUR BOT USERNAME (no @)
+        const BOT_USERNAME = "MyTaskBot_bot"; 
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Initialize Telegram
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Auto expand
+
+        // Global User State
+        let currentUser = null;
+        let userData = null;
+
+        // ==========================================
+        // 2. CORE LOGIC (INIT & USER)
+        // ==========================================
+        
+        async function initApp() {
+            try {
+                // Get Telegram User Data
+                const user = tg.initDataUnsafe.user;
+                
+                if (!user) {
+                    // Fallback for testing in browser (REMOVE IN PRODUCTION)
+                    console.warn("No Telegram User detected. Using mock data.");
+                    currentUser = { id: "123456", first_name: "Test User", photo_url: "https://via.placeholder.com/50" };
+                    // alert("Open in Telegram to work properly.");
+                } else {
+                    currentUser = user;
+                }
+
+                await createOrFetchUser();
+                
+                // Initialize Listeners
+                setupRealtimeListeners();
+                
+                // Render Initial Static Content
+                document.getElementById('app-loader').style.display = 'none';
+
+            } catch (error) {
+                console.error("Init Error:", error);
+                showToast("Error initializing app: " + error.message);
+            }
+        }
+
+        async function createOrFetchUser() {
+            const userRef = db.collection('users').doc(String(currentUser.id));
+            const doc = await userRef.get();
+
+            if (!doc.exists) {
+                // Handle Referral
+                let refBy = null;
+                const startParam = tg.initDataUnsafe.start_param;
+                if (startParam && startParam !== String(currentUser.id)) {
+                    refBy = startParam;
+                }
+
+                // Create New User
+                await userRef.set({
+                    id: String(currentUser.id),
+                    name: currentUser.first_name,
+                    photoURL: currentUser.photo_url || "",
+                    coins: 0,
+                    reffer: 0,
+                    refferBy: refBy,
+                    tasksCompleted: 0,
+                    totalWithdrawals: 0,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                // Note: We do NOT give referral reward here. Backend Function should handle that
+                // to prevent frontend manipulation.
+            }
+            
+            // Set Referral Link in UI
+            const refLink = `https://t.me/${BOT_USERNAME}?start=${currentUser.id}`;
+            document.getElementById('ref-link-input').value = refLink;
+        }
+
+        function setupRealtimeListeners() {
+            // 1. Listen to User Data
+            db.collection('users').doc(String(currentUser.id))
+                .onSnapshot((doc) => {
+                    if (doc.exists) {
+                        userData = doc.data();
+                        updateUI(userData);
+                    }
+                });
+
+            // 2. Listen to Announcements
+            db.collection('announcements').orderBy('createdAt', 'desc').limit(1)
+                .onSnapshot((snapshot) => {
+                    if (!snapshot.empty) {
+                        const data = snapshot.docs[0].data();
+                        document.getElementById('announcement-banner').classList.remove('hidden');
+                        document.getElementById('announcement-text').innerText = `${data.title}: ${data.body}`;
+                    }
+                });
+
+            // 3. Listen to Tasks (Populate Lists)
+            loadTasks();
+
+            // 4. Listen to Withdrawals
+            db.collection('withdrawals')
+                .where('userId', '==', String(currentUser.id))
+                .orderBy('createdAt', 'desc')
+                .limit(3)
+                .onSnapshot(renderWithdrawals);
+        }
+
+        // ==========================================
+        // 3. UI UPDATE FUNCTIONS
+        // ==========================================
+
+        function updateUI(data) {
+            // Header & Profile
+            const els = ['dash-name', 'profile-name'];
+            els.forEach(id => document.getElementById(id).innerText = data.name);
+            
+            document.getElementById('dash-id').innerText = data.id;
+            document.getElementById('profile-id').innerText = data.id;
+            document.getElementById('profile-ref-by').innerText = data.refferBy || "None";
+            
+            if(data.photoURL) {
+                document.getElementById('dash-photo').src = data.photoURL;
+                document.getElementById('profile-photo').src = data.photoURL;
+            }
+
+            // Stats
+            document.getElementById('stat-coins').innerText = data.coins;
+            document.getElementById('stat-referrals').innerText = data.reffer;
+            document.getElementById('stat-withd
