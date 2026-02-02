@@ -10,6 +10,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
+    <script src='//libtl.com/sdk.js' data-zone='10556894' data-sdk='show_10556894'></script>
+
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
 
@@ -241,17 +243,17 @@
                 <div class="list-item" style="background:transparent; border:none; padding:0; margin:0;">
                     <div class="item-left">
                         <span class="item-title">📺 Watch Advertisement</span>
-                        <span class="item-sub">Watch a short ad to support us</span>
+                        <span class="item-sub">Watch an ad to support us</span>
                         <span class="tag" style="width: fit-content; margin-top:4px; background:#f59e0b; color:black;">+50 Coins</span>
                     </div>
                 </div>
-                <button onclick="watchAdTask()" class="btn" style="margin-top: 10px; background: #f59e0b;">
+                <button id="ad-btn" onclick="watchAdTask()" class="btn" style="margin-top: 10px; background: #f59e0b;">
                     <i class="fas fa-play"></i> Watch & Earn
                 </button>
             </div>
 
             <div id="all-tasks-list">
-                </div>
+            </div>
         </div>
 
         <div id="tab-withdraw" class="tab-content hidden">
@@ -339,16 +341,16 @@
         
         // 🔥 REPLACE WITH YOUR FIREBASE CONFIG
         const firebaseConfig = {
-            apiKey: "AIzaSyD-YOUR-API-KEY-HERE",
-            authDomain: "your-project.firebaseapp.com",
-            projectId: "your-project-id",
-            storageBucket: "your-project.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "1:123456789:web:abcdef"
+          apiKey: "AIzaSyD-50XRon39jKQ31we6TtwXP9CYvZouzWE",
+          authDomain: "tg-web-11acf.firebaseapp.com",
+          projectId: "tg-web-11acf",
+          storageBucket: "tg-web-11acf.firebasestorage.app",
+          messagingSenderId: "128594143775",
+          appId: "1:128594143775:web:49808ede7bc395edd4432a"
         };
 
         // 🔥 REPLACE WITH YOUR BOT USERNAME (no @)
-        const BOT_USERNAME = "MyTaskBot_bot"; 
+        const BOT_USERNAME = "Task_earnnn_bot"; 
 
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
@@ -372,10 +374,8 @@
                 const user = tg.initDataUnsafe.user;
                 
                 if (!user) {
-                    // Fallback for testing in browser (REMOVE IN PRODUCTION)
                     console.warn("No Telegram User detected. Using mock data.");
                     currentUser = { id: "123456", first_name: "Test User", photo_url: "https://via.placeholder.com/50" };
-                    // alert("Open in Telegram to work properly.");
                 } else {
                     currentUser = user;
                 }
@@ -399,14 +399,12 @@
             const doc = await userRef.get();
 
             if (!doc.exists) {
-                // Handle Referral
                 let refBy = null;
                 const startParam = tg.initDataUnsafe.start_param;
                 if (startParam && startParam !== String(currentUser.id)) {
                     refBy = startParam;
                 }
 
-                // Create New User
                 await userRef.set({
                     id: String(currentUser.id),
                     name: currentUser.first_name,
@@ -418,18 +416,13 @@
                     totalWithdrawals: 0,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
-                
-                // Note: We do NOT give referral reward here. Backend Function should handle that
-                // to prevent frontend manipulation.
             }
             
-            // Set Referral Link in UI
             const refLink = `https://t.me/${BOT_USERNAME}?start=${currentUser.id}`;
             document.getElementById('ref-link-input').value = refLink;
         }
 
         function setupRealtimeListeners() {
-            // 1. Listen to User Data
             db.collection('users').doc(String(currentUser.id))
                 .onSnapshot((doc) => {
                     if (doc.exists) {
@@ -438,7 +431,6 @@
                     }
                 });
 
-            // 2. Listen to Announcements
             db.collection('announcements').orderBy('createdAt', 'desc').limit(1)
                 .onSnapshot((snapshot) => {
                     if (!snapshot.empty) {
@@ -448,10 +440,8 @@
                     }
                 });
 
-            // 3. Listen to Tasks (Populate Lists)
             loadTasks();
 
-            // 4. Listen to Withdrawals
             db.collection('withdrawals')
                 .where('userId', '==', String(currentUser.id))
                 .orderBy('createdAt', 'desc')
@@ -464,7 +454,6 @@
         // ==========================================
 
         function updateUI(data) {
-            // Header & Profile
             const els = ['dash-name', 'profile-name'];
             els.forEach(id => document.getElementById(id).innerText = data.name);
             
@@ -477,7 +466,6 @@
                 document.getElementById('profile-photo').src = data.photoURL;
             }
 
-            // Stats
             document.getElementById('stat-coins').innerText = data.coins;
             document.getElementById('stat-referrals').innerText = data.reffer;
             document.getElementById('stat-withdrawals').innerText = data.totalWithdrawals;
@@ -490,261 +478,4 @@
             document.getElementById('wallet-balance').innerText = data.coins;
         }
 
-        // ==========================================
-        // 4. TASK LOGIC
-        // ==========================================
-
-        let allTasksCache = [];
-
-        function loadTasks() {
-            db.collection('tasks').orderBy('createdAt', 'desc')
-                .onSnapshot((snapshot) => {
-                    allTasksCache = [];
-                    snapshot.forEach(doc => {
-                        allTasksCache.push({ id: doc.id, ...doc.data() });
-                    });
-                    
-                    renderQuickTasks(); // Top 3
-                    renderAllTasks();   // Full List
-                });
-        }
-
-        function renderQuickTasks() {
-            const container = document.getElementById('quick-tasks-list');
-            container.innerHTML = "";
-            // Take top 3
-            const tasks = allTasksCache.slice(0, 3);
-            
-            tasks.forEach(task => {
-                container.innerHTML += createTaskCardHTML(task, true);
-            });
-        }
-
-        function renderAllTasks() {
-            const container = document.getElementById('all-tasks-list');
-            container.innerHTML = "";
-            allTasksCache.forEach(task => {
-                container.innerHTML += createTaskCardHTML(task, false);
-            });
-        }
-
-        function createTaskCardHTML(task, isQuick) {
-            return `
-            <div class="card">
-                <div class="list-item" style="background:transparent; border:none; padding:0; margin:0;">
-                    <div class="item-left">
-                        <span class="item-title">${task.name}</span>
-                        <span class="item-sub">${task.type}</span>
-                        <span class="tag">₹${task.reward}</span>
-                    </div>
-                </div>
-                <div style="display:flex; gap:8px; margin-top:10px;">
-                    <a href="${task.link}" target="_blank" class="btn btn-outline btn-sm" style="flex:1">Open</a>
-                    <button onclick="claimTask('${task.id}', ${task.reward})" class="btn btn-sm" style="flex:1">Claim</button>
-                </div>
-            </div>`;
-        }
-
-        function filterTasks() {
-            const query = document.getElementById('task-search').value.toLowerCase();
-            const container = document.getElementById('all-tasks-list');
-            container.innerHTML = "";
-            
-            const filtered = allTasksCache.filter(t => 
-                t.name.toLowerCase().includes(query) || t.type.toLowerCase().includes(query)
-            );
-
-            filtered.forEach(task => {
-                container.innerHTML += createTaskCardHTML(task, false);
-            });
-        }
-
-        // --- TRANSACTION: CLAIM TASK ---
-        async function claimTask(taskId, reward) {
-            const btn = event.target;
-            btn.innerText = "Checking...";
-            btn.disabled = true;
-
-            const userId = String(currentUser.id);
-            const claimId = `${userId}_${taskId}`;
-            
-            const claimRef = db.collection('user_claims').doc(claimId);
-            const userRef = db.collection('users').doc(userId);
-
-            try {
-                await db.runTransaction(async (transaction) => {
-                    const claimDoc = await transaction.get(claimRef);
-                    if (claimDoc.exists) {
-                        throw "Already Claimed!";
-                    }
-
-                    // Create Claim
-                    transaction.set(claimRef, {
-                        userId: userId,
-                        taskId: taskId,
-                        claimedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-
-                    // Update User
-                    transaction.update(userRef, {
-                        coins: firebase.firestore.FieldValue.increment(reward),
-                        tasksCompleted: firebase.firestore.FieldValue.increment(1)
-                    });
-                });
-
-                showToast("Success! Reward Added.");
-                btn.innerText = "Claimed";
-            } catch (e) {
-                console.error(e);
-                showToast(typeof e === 'string' ? e : "Error claiming task.");
-                btn.innerText = "Claim";
-                btn.disabled = false;
-            }
-        }
-
-        // --- MONETAG AD LOGIC ---
-        function watchAdTask() {
-            // Placeholder for Monetag Direct Link or Logic
-            // In a real TWA, you often use an external link or a JS Interstitial
-            // Since we cannot embed actual ad script behavior without a domain, 
-            // We simulate the "Watch" action.
-            
-            showToast("Opening Ad...");
-            
-            // 🔥 REPLACE THIS URL WITH YOUR MONETAG DIRECT LINK
-            const adUrl = "https://www.google.com"; 
-            
-            // Open Ad
-            tg.openLink(adUrl);
-
-            // Simulate Verification Delay then Add Reward (Simple Version)
-            // Ideally, you use a callback or postback from the ad network.
-            setTimeout(async () => {
-                const userId = String(currentUser.id);
-                // We treat ad watching as a generic repeatable action, so we don't store unique ID
-                // Or we store it with a timestamp to limit to 1 per minute.
-                
-                try {
-                    await db.collection('users').doc(userId).update({
-                        coins: firebase.firestore.FieldValue.increment(50)
-                    });
-                    showToast("Ad Bonus: +50 Coins!");
-                } catch(e) {
-                    showToast("Error adding ad bonus");
-                }
-            }, 5000); // 5 seconds "watch" time simulation
-        }
-
-        // ==========================================
-        // 5. WITHDRAWAL LOGIC
-        // ==========================================
-
-        async function submitWithdrawal() {
-            const upi = document.getElementById('withdraw-upi').value;
-            const amount = parseInt(document.getElementById('withdraw-amount').value);
-            const btn = document.getElementById('btn-withdraw');
-
-            if (!upi || !amount) {
-                showToast("Please fill all details");
-                return;
-            }
-
-            if (userData.coins < amount) {
-                showToast("Insufficient Balance!");
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerText = "Processing...";
-
-            try {
-                await db.collection('withdrawals').add({
-                    userId: String(currentUser.id),
-                    upi: upi,
-                    amount: amount,
-                    status: 'pending',
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                
-                // Deduct Coins immediately or wait for admin? 
-                // Usually deduct immediately to prevent double spend.
-                await db.collection('users').doc(String(currentUser.id)).update({
-                    coins: firebase.firestore.FieldValue.increment(-amount),
-                    totalWithdrawals: firebase.firestore.FieldValue.increment(amount)
-                });
-
-                showToast("Withdrawal Requested!");
-                document.getElementById('withdraw-upi').value = "";
-                document.getElementById('withdraw-amount').value = "";
-            } catch (e) {
-                showToast("Error requesting withdrawal");
-                console.error(e);
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "Request Withdrawal";
-            }
-        }
-
-        function renderWithdrawals(snapshot) {
-            const container = document.getElementById('withdrawal-history');
-            container.innerHTML = "";
-
-            if (snapshot.empty) {
-                container.innerHTML = `<p style="text-align:center; color: var(--text-secondary);">No history yet</p>`;
-                return;
-            }
-
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                let statusColor = '#f59e0b'; // pending
-                if(data.status === 'approved') statusColor = '#22c55e';
-                if(data.status === 'rejected') statusColor = '#ef4444';
-
-                container.innerHTML += `
-                <div class="list-item">
-                    <div class="item-left">
-                        <span class="item-title">UPI: ${data.upi}</span>
-                        <span class="item-sub" style="color:${statusColor}">${data.status.toUpperCase()}</span>
-                    </div>
-                    <span class="tag">₹${data.amount}</span>
-                </div>`;
-            });
-        }
-
-        // ==========================================
-        // 6. UTILS & NAVIGATION
-        // ==========================================
-
-        function switchTabs(tabName, navEl) {
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            // Remove active class from nav
-            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-
-            // Show target
-            document.getElementById('tab-' + tabName).classList.remove('hidden');
-            navEl.classList.add('active');
-        }
-
-        function copyRefLink() {
-            const input = document.getElementById('ref-link-input');
-            input.select();
-            input.setSelectionRange(0, 99999);
-            navigator.clipboard.writeText(input.value).then(() => {
-                showToast("Link Copied!");
-            });
-        }
-
-        function showToast(message) {
-            const x = document.getElementById("toast");
-            x.innerText = message;
-            x.className = "show";
-            setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
-        }
-
-        // Start App
-        window.onload = initApp;
-
-    </script>
-</body>
-</html>
+        // ===
